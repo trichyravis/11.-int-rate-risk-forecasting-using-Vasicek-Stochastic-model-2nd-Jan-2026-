@@ -157,7 +157,24 @@ if run_btn:
                 fig_vas.add_trace(go.Scatter(x=f_dates, y=v_median, name="Vasicek Median", line=dict(color='orange', width=3)))
                 st.plotly_chart(fig_vas, width='stretch')
 
-            with tabs[6]: # RESTORED METRICS & VAR GRAPH
+            with tabs[4]: # BACKTESTING
+                st.subheader("🧪 30-Day Walk-Forward Validation")
+                train, test = yields.iloc[:-30], yields.iloc[-30:]
+                bt_model = pm.auto_arima(train, seasonal=False)
+                bt_fc = bt_model.predict(n_periods=30)
+                fig_bt = go.Figure()
+                fig_bt.add_trace(go.Scatter(x=test.index, y=test, name="Realized"))
+                fig_bt.add_trace(go.Scatter(x=test.index, y=bt_fc, name="Predicted", line=dict(dash='dash', color='orange')))
+                st.plotly_chart(fig_bt, width='stretch')
+                st.success(f"**Mean Absolute Error (MAE):** {np.mean(np.abs(test.values - bt_fc.values)):.4f}")
+
+            with tabs[5]: # DIAGNOSTICS
+                st.subheader("🔍 ARIMA Residual Analysis")
+                fig_diag = go.Figure(go.Scatter(y=model_arima.resid(), mode='lines', line=dict(color='gray')))
+                fig_diag.update_layout(title="Standardized Residuals (White Noise Check)", template="plotly_white")
+                st.plotly_chart(fig_diag, width='stretch')
+
+            with tabs[6]: # METRICS & VAR GRAPH
                 st.subheader(f"📊 Quantitative Risk Metrics (α={conf_level})")
                 z_score = stats.norm.ppf(conf_level)
                 latest_vol_daily = garch_fit.conditional_volatility.iloc[-1]
@@ -170,7 +187,6 @@ if run_btn:
                 c3.metric("Vasicek Median", f"{v_median[-1]:.3f}%")
                 c4.metric("Daily VaR", f"{var_val:.3f}%")
 
-                # Restore VaR Distribution Graph
                 x_d = np.linspace(-4, 4, 200)
                 y_d = stats.norm.pdf(x_d, 0, 1)
                 fig_r = go.Figure()
@@ -179,7 +195,7 @@ if run_btn:
                 fig_r.update_layout(title="Tail Risk Visualization (VaR Zone)", template="plotly_white")
                 st.plotly_chart(fig_r, width='stretch')
 
-            with tabs[7]: # RESTORED EXPORT
+            with tabs[7]: # EXPORT
                 st.subheader("📋 Data Export Terminal")
                 export_df = pd.DataFrame({
                     "Date": f_dates, 
@@ -191,14 +207,15 @@ if run_btn:
 
         except Exception as e: st.error(f"Execution Error: {e}")
 
-with tabs[8]: # Q&A
+# --- EDUCATIONAL Q&A HUB ---
+with tabs[8]:
     st.header("🎓 Quantitative Knowledge Base")
     with st.expander("❓ ARIMA Model Selection"):
-        st.write("ARIMA captures technical momentum. We use the Box-Jenkins methodology for parameter identification.")
-        [Image of the Box-Jenkins ARIMA methodology flowchart]
+        st.write("ARIMA captures technical momentum. We use the Box-Jenkins methodology (Identification, Estimation, Diagnostics) to stabilize the mean and predict directional paths.")
     with st.expander("❓ Vasicek Mean Reversion"):
-        st.write("Stochastic models assume rates revert to an equilibrium level theta over time.")
-        [Image of mean reversion in stochastic processes]
+        st.write("Stochastic models like Vasicek assume rates revert to an equilibrium level (theta) over time. This is modeled using Brownian motion and mean-reversion speed (kappa).")
+    with st.expander("❓ Understanding Tail Risk (VaR & ES)"):
+        st.write("Value-at-Risk (VaR) identifies the threshold loss, while Expected Shortfall (ES) measures the average loss in the worst-case scenarios beyond that threshold.")
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: gray;'>© 2026 The Mountain Path - World of Finance</p>", unsafe_allow_html=True)
