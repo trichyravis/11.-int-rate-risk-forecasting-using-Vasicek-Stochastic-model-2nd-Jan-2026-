@@ -15,7 +15,7 @@ import time
 warnings.filterwarnings("ignore")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 1. PAGE CONFIG & INSTITUTIONAL THEME
+# 1. PAGE CONFIG & THEME
 # ═══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(page_title="Institutional Risk & Yield Terminal", layout="wide")
 
@@ -65,16 +65,12 @@ with st.sidebar:
     st.header("🛡️ Risk Parameters")
     conf_level = st.select_slider("Confidence Level (α)", options=[0.90, 0.95, 0.99], value=0.95)
     
-    st.header("🎨 UI Settings")
-    show_step = st.checkbox("Show Step-Wise Curve", value=True)
-    
     run_btn = st.button("🚀 EXECUTE QUANT ANALYSIS")
 
     for _ in range(8): st.write("")
     st.markdown(f"""
         <div style="text-align: center; padding: 15px; border-radius: 10px; background-color: rgba(255,255,255,0.15); border: 1px solid {GOLD};">
             <h3 style="color: white !important; margin: 0;">Prof. V. Ravichandran</h3>
-            <p style="color: white !important; font-size: 0.85rem; margin: 5px 0;">The Mountain Path - World of Finance</p>
             <hr style="margin: 10px 0; border-color: {GOLD};">
             <a href="https://www.linkedin.com/in/trichyravis" target="_blank">
                 <button style="background-color: #0077b5; color: white; border: none; padding: 10px; border-radius: 5px; width: 100%; cursor: pointer; font-weight: bold;">🔗 LinkedIn Profile</button>
@@ -83,21 +79,21 @@ with st.sidebar:
     """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 3. ANALYTICS ENGINE & TABS
+# 3. ANALYTICS ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 tabs = st.tabs(["ℹ️ About", "📈 Forecast (ARIMA)", "🌪️ GARCH Volatility", "🎲 Stochastic (Vasicek)", "🧪 Backtesting", "🔍 Diagnostics", "📊 Metrics", "📋 Export", "📚 Q&A Hub"])
 
 with tabs[0]:
     st.header("📖 Institutional Research Methodology")
     st.markdown("### About this Platform")
-    st.write("This quantitative terminal utilizes a dual-engine approach to model interest rates. It employs the **ARIMA** framework for directional pathing and **GARCH** for risk estimation, alongside **Vasicek** stochastic simulations.")
+    st.write("Designed by Prof. V. Ravichandran to bridge academic theory with institutional practice. This terminal uses ARIMA for technical pathing, GARCH for risk regimes, and Vasicek for stochastic equilibrium.")
     col1, col2 = st.columns(2)
     with col1:
         st.subheader("📑 Assumptions")
-        st.markdown("- **Stationarity:** Yields differenced to stabilize mean.\n- **Clustering:** Volatility is regime-dependent.\n- **Mean Reversion:** Rates revert to local/equilibrium trends.")
+        st.markdown("- **Stationarity:** differencing ($d=1$) for mean stabilization.\n- **Clustering:** Time-varying variance.\n- **Reversion:** Stochastic drift toward equilibrium.")
     with col2:
         st.subheader("⚠️ Limitations")
-        st.markdown("- **Black Swans:** Does not predict structural 'jump' events.\n- **Univariate:** Does not include exogenous variables like GDP.")
+        st.markdown("- **Exogenous Shocks:** No 'Black Swan' detection.\n- **Univariate:** Historical price-action focus.")
 
 if run_btn:
     data = pd.DataFrame()
@@ -133,22 +129,21 @@ if run_btn:
             cond_vol = np.sqrt(garch_fit.conditional_volatility**2 * 252)
 
             with tabs[1]: # Forecast
-                st.markdown(f'<div class="config-box"><strong>Current Configuration:</strong> {ticker_label} | ARIMA{model_arima.order}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="config-box"><strong>Active Model:</strong> ARIMA{model_arima.order} | Horizon: {horizon} Days</div>', unsafe_allow_html=True)
                 fig_f = go.Figure()
-                if show_step:
-                    fig_f.add_trace(go.Scatter(x=f_dates, y=arima_fc, mode='lines+markers', line_shape='hv', line=dict(color='#FF4B4B', width=4)))
-                else:
-                    fig_f.add_trace(go.Scatter(x=yields.index[-200:], y=yields.tail(200), name="Actual"))
-                    fig_f.add_trace(go.Scatter(x=f_dates, y=arima_fc, name="ARIMA", line=dict(dash='dot', color='orange')))
+                fig_f.add_trace(go.Scatter(x=yields.index[-200:], y=yields.tail(200), name="Historical"))
+                fig_f.add_trace(go.Scatter(x=f_dates, y=arima_fc, name="ARIMA Forecast", line=dict(dash='dot', color='orange')))
+                fig_f.update_layout(template="plotly_white", title="Yield Directional Path")
                 st.plotly_chart(fig_f, width='stretch')
 
             with tabs[2]: # GARCH
                 st.subheader("🌪️ Conditional Volatility (GARCH 1,1)")
-                fig_v = go.Figure(go.Scatter(x=cond_vol.index, y=cond_vol, line=dict(color='red')))
+                fig_v = go.Figure(go.Scatter(x=cond_vol.index, y=cond_vol, line=dict(color='red'), name="Ann. Volatility"))
+                fig_v.update_layout(template="plotly_white")
                 st.plotly_chart(fig_v, width='stretch')
 
             with tabs[3]: # VASICEK
-                st.subheader("🎲 Vasicek Stochastic Simulation")
+                st.subheader("🎲 Vasicek Monte Carlo Simulation")
                 r0, kappa, theta, sigma = yields.iloc[-1]/100, 0.20, 0.045, 0.015
                 dt, n_paths = 1/252, 1000
                 sim_paths = np.zeros((n_paths, horizon))
@@ -158,42 +153,52 @@ if run_btn:
                     sim_paths[:, i] = sim_paths[:, i-1] + kappa * (theta - sim_paths[:, i-1]) * dt + sigma * dW
                 fig_vas = go.Figure()
                 for i in range(10): fig_vas.add_trace(go.Scatter(x=f_dates, y=sim_paths[i, :]*100, mode='lines', line=dict(width=1, color='rgba(0,33,71,0.2)'), showlegend=False))
-                fig_vas.add_trace(go.Scatter(x=f_dates, y=np.percentile(sim_paths, 50, axis=0)*100, name="Median Path", line=dict(color='orange', width=3)))
+                v_median = np.percentile(sim_paths, 50, axis=0)*100
+                fig_vas.add_trace(go.Scatter(x=f_dates, y=v_median, name="Vasicek Median", line=dict(color='orange', width=3)))
                 st.plotly_chart(fig_vas, width='stretch')
 
-            with tabs[4]: # BACKTEST
-                st.subheader("🧪 30-Day Walk-Forward Validation")
-                train, test = yields.iloc[:-30], yields.iloc[-30:]
-                bt_model = pm.auto_arima(train, seasonal=False)
-                bt_fc = bt_model.predict(n_periods=30)
-                fig_bt = go.Figure()
-                fig_bt.add_trace(go.Scatter(x=test.index, y=test, name="Realized"))
-                fig_bt.add_trace(go.Scatter(x=test.index, y=bt_fc, name="Predicted", line=dict(dash='dash', color='orange')))
-                st.plotly_chart(fig_bt, width='stretch')
-
-            with tabs[5]: # DIAGNOSTICS
-                st.subheader("🔍 Residual Analysis")
-                fig_diag = go.Figure(go.Scatter(y=model_arima.resid(), mode='lines', line=dict(color='gray')))
-                st.plotly_chart(fig_diag, width='stretch')
-
-            with tabs[6]: # METRICS
-                z = stats.norm.ppf(conf_level)
-                v, es = cond_vol.iloc[-1]/np.sqrt(252) * z, (cond_vol.iloc[-1]/np.sqrt(252)) * (stats.norm.pdf(z)/(1-conf_level))
+            with tabs[6]: # RESTORED METRICS & VAR GRAPH
+                st.subheader(f"📊 Quantitative Risk Metrics (α={conf_level})")
+                z_score = stats.norm.ppf(conf_level)
+                latest_vol_daily = garch_fit.conditional_volatility.iloc[-1]
+                var_val = latest_vol_daily * z_score
+                es_val = latest_vol_daily * (stats.norm.pdf(z_score)/(1-conf_level))
+                
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Current Rate", f"{yields.iloc[-1]:.3f}%")
-                c2.metric("Forecasted", f"{arima_fc.iloc[-1]:.3f}%")
-                c3.metric("Daily VaR", f"{v:.3f}%")
-                c4.metric("Exp. Shortfall", f"{es:.3f}%")
+                c2.metric("ARIMA Forecast", f"{arima_fc.iloc[-1]:.3f}%")
+                c3.metric("Vasicek Median", f"{v_median[-1]:.3f}%")
+                c4.metric("Daily VaR", f"{var_val:.3f}%")
 
-            with tabs[7]: # EXPORT
-                st.download_button("📥 Download CSV", pd.DataFrame({"Date": f_dates, "Forecast": arima_fc}).to_csv().encode('utf-8'), "report.csv")
+                # Restore VaR Distribution Graph
+                x_d = np.linspace(-4, 4, 200)
+                y_d = stats.norm.pdf(x_d, 0, 1)
+                fig_r = go.Figure()
+                fig_r.add_trace(go.Scatter(x=x_d, y=y_d, fill='tozeroy', name='Standard Normal', line=dict(color=CORPORATE_BLUE)))
+                fig_r.add_trace(go.Scatter(x=x_d[x_d < -z_score], y=y_d[x_d < -z_score], fill='tozeroy', fillcolor='rgba(255,0,0,0.5)', name='Tail Risk Zone'))
+                fig_r.update_layout(title="Tail Risk Visualization (VaR Zone)", template="plotly_white")
+                st.plotly_chart(fig_r, width='stretch')
 
-        except Exception as e: st.error(f"Error: {e}")
+            with tabs[7]: # RESTORED EXPORT
+                st.subheader("📋 Data Export Terminal")
+                export_df = pd.DataFrame({
+                    "Date": f_dates, 
+                    "ARIMA_Forecast": arima_fc,
+                    "Vasicek_Median": v_median
+                })
+                st.dataframe(export_df, width='stretch')
+                st.download_button("📥 Download Full Report (CSV)", export_df.to_csv().encode('utf-8'), f"{ticker}_report.csv")
+
+        except Exception as e: st.error(f"Execution Error: {e}")
 
 with tabs[8]: # Q&A
-    st.header("🎓 Q&A Hub")
-    with st.expander("❓ What is the Box-Jenkins Methodology?"): st.write("A 3-stage process: Identification, Estimation, and Diagnostics for ARIMA models.")
-    with st.expander("❓ Vasicek vs ARIMA?"): st.write("ARIMA is technical/short-term; Vasicek is stochastic/equilibrium-based.")
+    st.header("🎓 Quantitative Knowledge Base")
+    with st.expander("❓ ARIMA Model Selection"):
+        st.write("ARIMA captures technical momentum. We use the Box-Jenkins methodology for parameter identification.")
+        [Image of the Box-Jenkins ARIMA methodology flowchart]
+    with st.expander("❓ Vasicek Mean Reversion"):
+        st.write("Stochastic models assume rates revert to an equilibrium level theta over time.")
+        [Image of mean reversion in stochastic processes]
 
 st.markdown("---")
 st.markdown("<p style='text-align: center; color: gray;'>© 2026 The Mountain Path - World of Finance</p>", unsafe_allow_html=True)
